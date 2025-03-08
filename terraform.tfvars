@@ -8,11 +8,6 @@ key_name              = "ubuntu"
 security_group_ids    = ["sg-062d44a4c696a86f2"] 
 subnet_id             = "subnet-017854fdc4ba050f7"
 
-# EC2 Instance Configuration
-instance_name         = "jenkins-ec2"
-instance_count        = 1
-root_volume_size      = 20 # GB
-
 # Optional Tags
 tags = {
   Name        = "Jenkins Server"
