@@ -1,7 +1,8 @@
 pipeline {
     agent any
     environment {
-        AWS_CREDENTIALS_ID = 'your-aws-credentials-id' // Replace with your AWS credentials ID
+        AWS_ACCESS_KEY_ID = credentials('AWS_ACCESS_KEY_ID')
+        AWS_SECRET_ACCESS_KEY = credentials('AWS_SECRET_ACCESS_KEY')
         AWS_REGION = 'us-east-1' // Replace with your desired AWS region
         TF_VERSION = 'latest' // Or a specific Terraform version (e.g., '1.3.7')
         TF_VAR_FILE = 'terraform.tfvars' // Optional: Specify a terraform.tfvars file
