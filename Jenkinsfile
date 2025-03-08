@@ -1,54 +1,46 @@
 pipeline {
+    agent any
 
-    parameters {
-        booleanParam(name: 'autoApprove', defaultValue: false, description: 'Automatically run apply after generating plan?')
-    } 
-    environment {
-        AWS_ACCESS_KEY_ID     = credentials('AWS_ACCESS_KEY_ID')
-        AWS_SECRET_ACCESS_KEY = credentials('AWS_SECRET_ACCESS_KEY')
-    }
-
-   agent  any
     stages {
-        stage('checkout') {
+        stage('Checkout') {
             steps {
-                 script{
-                        dir("terraform")
-                        {
-                            git "https://github.com/clementawsgit/jenkins-terraform.git"
-                        }
-                    }
-                }
-            }
-
-        stage('Plan') {
-            steps {
-                sh 'pwd;cd terraform/ ; terraform init'
-                sh "pwd;cd terraform/ ; terraform plan -out tfplan"
-                sh 'pwd;cd terraform/ ; terraform show -no-color tfplan > tfplan.txt'
+                git credentialsId: 'YOUR_GIT_CREDENTIALS_ID', url: 'https://github.com/clementawsgit/jenkins-terraform.git', branch: 'main'
             }
         }
-        stage('Approval') {
-           when {
-               not {
-                   equals expected: true, actual: params.autoApprove
-               }
-           }
 
-           steps {
-               script {
-                    def plan = readFile 'terraform/tfplan.txt'
-                    input message: "Do you want to apply the plan?",
-                    parameters: [text(name: 'Plan', description: 'Please review the plan', defaultValue: plan)]
-               }
-           }
-       }
-
-        stage('Apply') {
+        stage('Terraform Init') {
             steps {
-                sh "pwd;cd terraform/ ; terraform apply -input=false tfplan"
+                sh 'terraform init'
+            }
+        }
+
+        stage('Terraform Plan') {
+            steps {
+                sh 'terraform plan -out=ec2.tfplan'
+            }
+        }
+
+        stage('Terraform Apply') {
+            input {
+                message "Approve Terraform Apply?"
+                ok "Proceed"
+                abort "Abort"
+            }
+            steps {
+                sh 'terraform apply ec2.tfplan'
             }
         }
     }
 
-  }
+    post {
+        always {
+            cleanWs()
+        }
+        failure {
+            echo "Pipeline failed!"
+        }
+        success {
+            echo "Pipeline succeeded!"
+        }
+    }
+}
