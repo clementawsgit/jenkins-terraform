@@ -32,13 +32,6 @@ pipeline {
                 }
             }
         }
-        stage('Upload State to S3') {
-            steps {
-                script {
-                    sh 'aws s3 cp terraform.tfstate s3://your-bucket-name'
-                }
-            }
-        }
     }
     post {
         always {
