@@ -1,34 +1,55 @@
+
 pipeline {
     agent any
     environment {
-        AWS_ACCESS_KEY_ID     = credentials('AWS_ACCESS_KEY_ID')
+        AWS_ACCESS_KEY_ID = credentials('AWS_ACCESS_KEY_ID')
         AWS_SECRET_ACCESS_KEY = credentials('AWS_SECRET_ACCESS_KEY')
-        AWS_REGION = 'us-east-1' 
-        TF_VERSION = 'latest'
+        AWS_DEFAULT_REGION = 'us-east-1'
     }
-    tools {
-        terraform "${TF_VERSION}"
-    }
-    stages {
-        stage('Terraform Init') {
-            steps {
-                sh 'terraform init'
+    stages{
+        stage('Checkout SCM'){
+            steps{
+                script{
+                    checkout scmGit(branches: [[name: '*/main']], extensions: [], userRemoteConfigs: [[url: 'https://github.com/clementawsgit/jenkins-terraform.git']])
+                }
             }
         }
-        stage('Terraform Plan') {
-            steps {
-                sh 'terraform plan -var-file=terraform.tfvars' # optional var file.
+        stage('Initializing Terraform'){
+            steps{
+                script{
+                    dir('terraform'){
+                         sh 'terraform init'
+                    }
+                }
             }
         }
-        stage('Terraform Apply') {
-            steps {
-                sh 'terraform apply -auto-approve -var-file=terraform.tfvars' # optional var file.
+        stage('Validating Terraform'){
+            steps{
+                script{
+                    dir('terraform'){
+                         sh 'terraform validate'
+                    }
+                }
             }
         }
-    }
-    post {
-        always {
-            echo "Terraform execution complete."
+        stage('Previewing the infrastructure'){
+            steps{
+                script{
+                    dir('terraform'){
+                         sh 'terraform plan'
+                    }
+                    input(message: "Approve?", ok: "proceed")
+                }
+            }
+        }
+        stage('Create/Destroy an EKS cluster'){
+            steps{
+                script{
+                    dir('terraform'){
+                         sh 'terraform $action --auto-approve'
+                    }
+                }
+            }
         }
     }
 }
