@@ -1,64 +1,46 @@
 pipeline {
     agent any
     environment {
-        AWS_ACCESS_KEY_ID = credentials('AWS_ACCESS_KEY_ID')
-        AWS_SECRET_ACCESS_KEY = credentials('AWS_SECRET_ACCESS_KEY')
-        AWS_REGION = 'us-east-1' // Replace with your desired AWS region
-        TF_VERSION = 'latest' // Or a specific Terraform version (e.g., '1.3.7')
-        TF_VAR_FILE = 'terraform.tfvars' // Optional: Specify a terraform.tfvars file
-    }
-    tools {
-        terraform "${TF_VERSION}"
+        AWS_DEFAULT_REGION = 'us-east-1'
     }
     stages {
-        stage('Checkout') {
+        stage('Checkout Code') {
             steps {
-                git branch: 'main', url: 'https://github.com/clementawsgit/jenkins-terraform.git'
+                checkout scm
             }
         }
         stage('Terraform Init') {
             steps {
-                sh 'terraform init'
-            }
-        }
-        stage('Terraform Validate') {
-            steps{
-                sh 'terraform validate'
+                script {
+                    sh 'terraform init'
+                }
             }
         }
         stage('Terraform Plan') {
             steps {
                 script {
-                    if (env.TF_VAR_FILE) {
-                        sh "terraform plan -var-file=${env.TF_VAR_FILE}"
-                    } else {
-                        sh 'terraform plan'
-                    }
+                    sh 'terraform plan -out=tfplan'
                 }
             }
         }
         stage('Terraform Apply') {
-            input {
-                message "Approve Terraform Apply?"
-                ok "Proceed"
-            }
             steps {
                 script {
-                    if (env.TF_VAR_FILE) {
-                        sh "terraform apply -auto-approve -var-file=${env.TF_VAR_FILE}"
-                    } else {
-                        sh 'terraform apply -auto-approve'
-                    }
+                    sh 'terraform apply -auto-approve tfplan'
+                }
+            }
+        }
+        stage('Upload State to S3') {
+            steps {
+                script {
+                    sh 'aws s3 cp terraform.tfstate s3://clements32025 '
                 }
             }
         }
     }
     post {
         always {
-            echo "Terraform execution completed."
-        }
-        failure {
-            echo "Terraform execution failed."
+            cleanWs()
         }
     }
 }
