@@ -1,35 +1,71 @@
 pipeline {
     agent any
+
     environment {
-        AWS_DEFAULT_REGION = 'us-east-1'
-        AWS_ACCESS_KEY_ID = credentials('AWS_ACCESS_KEY_ID')
+        AWS_ACCESS_KEY_ID     = credentials('AWS_ACCESS_KEY_ID')
         AWS_SECRET_ACCESS_KEY = credentials('AWS_SECRET_ACCESS_KEY')
+        AWS_REGION            = 'us-east-1'
+        TERRAFORM_VERSION     = 'latest'
     }
+
     stages {
-        stage('Checkout Code') {
+        stage('Checkout') {
             steps {
-                checkout scm
+                git credentialsId: 'YOUR_GIT_CREDENTIALS_ID', url: 'https://github.com/clementawsgit/jenkins-terraform.git'
             }
         }
+
         stage('Terraform Init') {
             steps {
-                script {
-                    sh 'terraform init'
-                }
+                sh '''
+                curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo apt-key add -
+                sudo apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
+                sudo apt-get update && sudo apt-get install terraform=${TERRAFORM_VERSION} -y
+                terraform init
+                '''
             }
         }
+
+        stage('Terraform Validate') {
+            steps {
+                sh 'terraform validate'
+            }
+        }
+
         stage('Terraform Plan') {
             steps {
-                script {
-                    sh 'terraform plan -out=tfplan'
+                sh 'terraform plan -out=tfplan'
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'tfplan'
                 }
             }
         }
+
         stage('Terraform Apply') {
+            when {
+                branch 'main'
+            }
+            input {
+                message "Apply Terraform changes?"
+                ok "Proceed"
+            }
             steps {
-                script {
-                    sh 'terraform apply -auto-approve tfplan'
-                }
+                sh 'terraform apply tfplan'
+            }
+        }
+
+        stage('Terraform Destroy (Optional)') {
+            when {
+                branch 'destroy'
+            }
+            input {
+                message "Destroy Terraform resources?"
+                ok "Proceed"
+            }
+            steps {
+                sh 'terraform destroy -auto-approve'
             }
         }
     }
