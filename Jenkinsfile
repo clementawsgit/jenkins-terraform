@@ -1,87 +1,54 @@
 pipeline {
-    agent any
 
+    parameters {
+        booleanParam(name: 'autoApprove', defaultValue: false, description: 'Automatically run apply after generating plan?')
+    } 
     environment {
-        AWS_ACCESS_KEY_ID = credentials('aws-access-key-id')
-        AWS_SECRET_ACCESS_KEY = credentials('aws-secret-access-key')
+        AWS_ACCESS_KEY_ID     = credentials('AWS_ACCESS_KEY_ID')
+        AWS_SECRET_ACCESS_KEY = credentials('AWS_SECRET_ACCESS_KEY')
     }
 
+   agent  any
     stages {
-        stage('Checkout') {
+        stage('checkout') {
             steps {
-                // Checkout the repository
-                checkout scm
-            }
-        }
-
-        stage('Install Terraform') {
-            steps {
-                script {
-                    // Install Terraform if not already installed
-                    sh '''
-                    curl -LO https://releases.hashicorp.com/terraform/1.3.7/terraform_1.3.7_linux_amd64.zip
-                    unzip terraform_1.3.7_linux_amd64.zip
-                    sudo mv terraform /usr/local/bin/
-                    terraform -v
-                    '''
+                 script{
+                        dir("terraform")
+                        {
+                            git "https://github.com/yeshwanthlm/Terraform-Jenkins.git"
+                        }
+                    }
                 }
             }
-        }
 
-        stage('Terraform Init') {
+        stage('Plan') {
             steps {
-                script {
-                    // Initialize Terraform
-                    sh 'terraform init'
-                }
+                sh 'pwd;cd terraform/ ; terraform init'
+                sh "pwd;cd terraform/ ; terraform plan -out tfplan"
+                sh 'pwd;cd terraform/ ; terraform show -no-color tfplan > tfplan.txt'
             }
         }
+        stage('Approval') {
+           when {
+               not {
+                   equals expected: true, actual: params.autoApprove
+               }
+           }
 
-        stage('Terraform Plan') {
-            steps {
-                script {
-                    // Run Terraform plan to preview the changes
-                    sh 'terraform plan -out=tfplan'
-                }
-            }
-        }
+           steps {
+               script {
+                    def plan = readFile 'terraform/tfplan.txt'
+                    input message: "Do you want to apply the plan?",
+                    parameters: [text(name: 'Plan', description: 'Please review the plan', defaultValue: plan)]
+               }
+           }
+       }
 
-        stage('Terraform Apply') {
+        stage('Apply') {
             steps {
-                script {
-                    // Apply the Terraform configuration (run if plan is successful)
-                    input message: 'Approve Terraform Apply?', ok: 'Apply'
-                    sh 'terraform apply -auto-approve tfplan'
-                }
-            }
-        }
-
-        stage('Terraform Destroy') {
-            when {
-                branch 'master'
-            }
-            steps {
-                script {
-                    // Optionally destroy infrastructure when required
-                    input message: 'Destroy Infrastructure?', ok: 'Destroy'
-                    sh 'terraform destroy -auto-approve'
-                }
+                sh "pwd;cd terraform/ ; terraform apply -input=false tfplan"
             }
         }
     }
 
-    post {
-        success {
-            echo 'Terraform changes applied successfully!'
-        }
-
-        failure {
-            echo 'Terraform failed. Check the logs for errors.'
-        }
-
-        always {
-            // Clean up any sensitive files if needed
-            sh 'rm -f terraform_*.zip'
-        }
-    }
-}
+  }
