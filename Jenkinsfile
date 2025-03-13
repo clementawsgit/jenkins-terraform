@@ -1,61 +1,28 @@
 pipeline {
     agent any
-
-    environment {
-        // Define environment variables for Terraform
-        TF_VAR_project = 'my-project'
-        TF_VAR_region = 'us-east-1'
+    tools {
+      terraform 'Terraform'
     }
-
+    environment {
+      TF_IN_AUTOMATION = "TRUE"
+      AWS_ACCESS_KEY_ID = credentials('aws_access_key')
+      AWS_SECRET_ACCESS_KEY = credentials('aws_secret_access_key')
+    }
     stages {
-        stage('Checkout') {
-            steps {
-                // Checkout the source code
-                checkout scm
-            }
-        }
-
-        stage('Initialize Terraform') {
-            steps {
-                script {
-                    // Initialize Terraform working directory
+        stage('Terraform Init'){
+            steps{
+                dir(postgres/dev){
                     sh 'terraform init'
                 }
+                
             }
         }
-
-        stage('Plan Terraform Deployment') {
-            steps {
-                script {
-                    // Run Terraform plan to see the changes to be made
-                    sh 'terraform plan -var="project=${TF_VAR_project}" -var="region=${TF_VAR_region}"'
+        stage('Terraform Apply'){
+            steps{
+                dir(postgres/dev){
+                    sh 'terraform apply'
                 }
             }
-        }
-
-        stage('Apply Terraform Deployment') {
-            steps {
-                script {
-                    // Apply the Terraform changes to deploy infrastructure
-                    sh 'terraform apply -auto-approve -var="project=${TF_VAR_project}" -var="region=${TF_VAR_region}"'
-                }
-            }
-        }
-
-        stage('Destroy Infrastructure (optional)') {
-            steps {
-                script {
-                    // Destroy infrastructure (used for cleanup or testing)
-                    sh 'terraform destroy -auto-approve -var="project=${TF_VAR_project}" -var="region=${TF_VAR_region}"'
-                }
-            }
-        }
-    }
-
-    post {
-        always {
-            // Clean up any Terraform state files after completion
-            cleanWs()
         }
     }
 }
