@@ -1,54 +1,61 @@
 pipeline {
+    agent any
 
-    parameters {
-        booleanParam(name: 'autoApprove', defaultValue: false, description: 'Automatically run apply after generating plan?')
-    } 
     environment {
-        AWS_ACCESS_KEY_ID     = credentials('AWS_ACCESS_KEY_ID')
-        AWS_SECRET_ACCESS_KEY = credentials('AWS_SECRET_ACCESS_KEY')
+        // Define environment variables for Terraform
+        TF_VAR_project = 'my-project'
+        TF_VAR_region = 'us-east-1'
     }
 
-   agent  any
     stages {
-        stage('checkout') {
+        stage('Checkout') {
             steps {
-                 script{
-                        dir("terraform")
-                        {
-                            git "https://github.com/yeshwanthlm/Terraform-Jenkins.git"
-                        }
-                    }
+                // Checkout the source code
+                checkout scm
+            }
+        }
+
+        stage('Initialize Terraform') {
+            steps {
+                script {
+                    // Initialize Terraform working directory
+                    sh 'terraform init'
                 }
             }
+        }
 
-        stage('Plan') {
+        stage('Plan Terraform Deployment') {
             steps {
-                sh 'pwd;cd terraform/ ; terraform init'
-                sh "pwd;cd terraform/ ; terraform plan -out tfplan"
-                sh 'pwd;cd terraform/ ; terraform show -no-color tfplan > tfplan.txt'
+                script {
+                    // Run Terraform plan to see the changes to be made
+                    sh 'terraform plan -var="project=${TF_VAR_project}" -var="region=${TF_VAR_region}"'
+                }
             }
         }
-        stage('Approval') {
-           when {
-               not {
-                   equals expected: true, actual: params.autoApprove
-               }
-           }
 
-           steps {
-               script {
-                    def plan = readFile 'terraform/tfplan.txt'
-                    input message: "Do you want to apply the plan?",
-                    parameters: [text(name: 'Plan', description: 'Please review the plan', defaultValue: plan)]
-               }
-           }
-       }
-
-        stage('Apply') {
+        stage('Apply Terraform Deployment') {
             steps {
-                sh "pwd;cd terraform/ ; terraform apply -input=false tfplan"
+                script {
+                    // Apply the Terraform changes to deploy infrastructure
+                    sh 'terraform apply -auto-approve -var="project=${TF_VAR_project}" -var="region=${TF_VAR_region}"'
+                }
+            }
+        }
+
+        stage('Destroy Infrastructure (optional)') {
+            steps {
+                script {
+                    // Destroy infrastructure (used for cleanup or testing)
+                    sh 'terraform destroy -auto-approve -var="project=${TF_VAR_project}" -var="region=${TF_VAR_region}"'
+                }
             }
         }
     }
 
-  }
+    post {
+        always {
+            // Clean up any Terraform state files after completion
+            cleanWs()
+        }
+    }
+}
