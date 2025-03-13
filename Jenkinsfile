@@ -8,21 +8,21 @@ pipeline {
         TERRAFORM_VERSION     = 'latest'
     }
 
-    stages {
-        stage('Checkout') {
-            steps {
-                git credentialsId: 'YOUR_GIT_CREDENTIALS_ID', url: 'https://github.com/clementawsgit/jenkins-terraform.git'
+    stages{
+        stage('Checkout SCM'){
+            steps{
+                script{
+                    checkout scmGit(branches: [[name: '*/main']], extensions: [], userRemoteConfigs: [[url: 'https://github.com/clementawsgit/jenkins-terraform.git']])
+                }
             }
         }
-
-        stage('Terraform Init') {
-            steps {
-                sh '''
-                curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo apt-key add -
-                sudo apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
-                sudo apt-get update && sudo apt-get install terraform=${TERRAFORM_VERSION} -y
-                terraform init
-                '''
+        stage('Initializing Terraform'){
+            steps{
+                script{
+                    dir('terraform'){
+                         sh 'terraform init'
+                    }
+                }
             }
         }
 
